@@ -26,19 +26,20 @@ class NotionProvider:
         """
         page = self.client.get_block(tree.metadata_notion.id)
         children = {child.metadata_notion.id: child for child in tree.children}
+        tree.metadata_notion.title = page.title
 
         # Create new children or reuse existing ones if needed
         for group in iterate(page):
             if group.id in children:
                 node = children.pop(group.id)
             else:
-                node = self.create_node(group.id, tree)
+                node = self.create_node(group.id, group.title, tree)
                 tree.children.append(node)
 
             self.fetch_group(node, group)
 
         # Unused children are deleted
-        for (_, child) in children:
+        for (_, child) in children.items():
             child.metadata_notion.deleted = True
 
         self.link_relations(tree)
@@ -52,6 +53,9 @@ class NotionProvider:
         :param group:
         :return:
         """
+        if node.metadata_notion.deleted:
+            return node
+
         node_path = group.title
         node.node_role = self.mapping.match(node_path)
 
@@ -69,7 +73,7 @@ class NotionProvider:
             if group.id in children:
                 child = children.pop(group.id)
             else:
-                child = self.create_node(group.id, node)
+                child = self.create_node(item.id, item.title, node)
                 node.children.append(child)
             self.fetch_item(node_path, child, item)
             synced_at = max(synced_at, child.metadata_notion.synced_at)
@@ -89,10 +93,13 @@ class NotionProvider:
         :param item:
         :return:
         """
+        if node.metadata_notion.deleted:
+            return node
+
         node_path = f'{group_path}/{item.title}'
         node.node_role = self.mapping.match(node_path)
         node.metadata_notion = SyncMetadataNotion(
-            item.id, max(node.metadata_notion.synced_at, item.updated or node.metadata_notion.synced_at)
+            item.id, item.title, max(node.metadata_notion.synced_at, item.updated or node.metadata_notion.synced_at)
         )
         node.metadata_notion.relations = {
             role: [related.id for related in getattr(item, role)]
@@ -117,11 +124,12 @@ class NotionProvider:
                 for parent_role, parents in item.metadata_notion.relations.items():
                     parent_items = filter(lambda i: i.metadata_notion.id in parents, grouped[parent_role])
                     for parent in parent_items:
-                        # TODO: do we need to check for duplicates
+                        # TODO: do we need to check for duplicates?
                         parent.children.append(item)
+                        items.parent = parent
 
-    def create_node(self, id: GUID, parent: SyncNode):
+    def create_node(self, id: GUID, title: str, parent: SyncNode):
         return SyncNode(
             parent=parent, node_type='group',
-            metadata_notion=SyncMetadataNotion(id)
+            metadata_notion=SyncMetadataNotion(id, title=title)
         )

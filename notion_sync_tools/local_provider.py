@@ -29,6 +29,9 @@ class LocalProvider:
         :param node:
         :return:
         """
+        if node.metadata_local.deleted:
+            return node
+
         node_path = os.path.join(path, node.metadata_local.path)
 
         # Check if current node exists
@@ -48,14 +51,19 @@ class LocalProvider:
             return node
 
         # Check for new items
-        children = set(child.metadata_local.path for child in node.children)
+        children = {child.metadata_local.path: child for child in node.children}
         for item in os.listdir(os.path.join(path, node.metadata_local.path)):
             if item in children or item == TREE_FILENAME:
                 continue
 
+            children.pop(item)
             child = self.create_node(node_path, node, item)
             if child:
                 node.children.append(child)
+
+        # Unused children are deleted
+        for (_, child) in children.items():
+            child.metadata_notion.deleted = True
 
         # Update children
         synced_at = datetime.now().replace(year=1990)

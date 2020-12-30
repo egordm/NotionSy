@@ -5,7 +5,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Union, List, Dict, Tuple, Pattern, AnyStr, Set
+from typing import Optional, Union, List, Dict, Tuple, Pattern, AnyStr, Set, Callable
 
 import yaml
 
@@ -22,6 +22,7 @@ TREE_FILENAME = '.sync.yml'
 class SyncMetadataNotion(yaml.YAMLObject):
     yaml_tag = u'!SyncMetadataNotion'
     id: GUID
+    title: str
     synced_at: datetime = field(default_factory=lambda: datetime.now().replace(year=1990))
     deleted: bool = False
     relations: Dict[SyncNodeRole, List[GUID]] = field(default_factory=lambda: {})
@@ -34,6 +35,7 @@ class SyncMetadataLocal(yaml.YAMLObject):
     synced_at: datetime = field(default_factory=lambda: datetime.now().replace(year=1990))
     deleted: bool = False
 
+SyncMetadata = Union[SyncMetadataNotion, SyncMetadataLocal]
 
 @dataclass
 class SyncNode(SecretYamlObject):
@@ -67,7 +69,7 @@ class SyncTree(SyncNode):
     def create_notion(root_id: GUID) -> 'SyncTree':
         return SyncTree(
             node_type='root',
-            metadata_notion=SyncMetadataNotion(root_id)
+            metadata_notion=SyncMetadataNotion(root_id, '')
         )
 
     def write(self, root_path: Path):
@@ -83,12 +85,17 @@ class SyncTree(SyncNode):
         with open(path, 'r') as f:
             return yaml.load(f, Loader=yaml.Loader)
 
-    def flatten(self) -> List[SyncNode]:
+    def flatten(self, filter_fn: Callable[[SyncNode], bool] = None) -> List[SyncNode]:
+        if filter_fn is None:
+            filter_fn = lambda x: True
+
         def flatten_node(node: SyncNode):
-            return [node, *itertools.chain(*[flatten_node(c) for c in node.children])]
+            if not filter_fn(node):
+                return []
+            children = filter(filter_fn, [flatten_node(c) for c in node.children])
+            return [node, *itertools.chain(*children)]
+
         return flatten_node(self)
-
-
 
 
 REGEX = str
