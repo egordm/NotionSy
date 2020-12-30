@@ -2,9 +2,9 @@ import fnmatch
 import logging
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Union, List, Dict, Tuple, Pattern, AnyStr
+from typing import Optional, Union, List, Dict, Tuple, Pattern, AnyStr, Set
 
 import yaml
 
@@ -21,16 +21,17 @@ TREE_FILENAME = '.sync.yml'
 class SyncMetadataNotion(yaml.YAMLObject):
     yaml_tag = u'!SyncMetadataNotion'
     id: GUID
-    synced_at: datetime
-    deleted: bool
+    synced_at: datetime = field(default_factory=lambda: datetime.now().replace(year=1990))
+    deleted: bool = False
+    relations: Dict[SyncNodeRole, GUID] = field(default_factory=lambda: [])
 
 
 @dataclass
 class SyncMetadataLocal(yaml.YAMLObject):
     yaml_tag = u'!SyncMetadataLocal'
     path: Path
-    synced_at: datetime
-    deleted: bool
+    synced_at: datetime = field(default_factory=lambda: datetime.now().replace(year=1990))
+    deleted: bool = False
 
 
 @dataclass
@@ -38,12 +39,12 @@ class SyncNode(SecretYamlObject):
     hidden_fields = ["parent"]
     yaml_tag = u'!SyncNode'
 
-    parent: Optional[Union['SyncNode', 'SyncTree']]
-    children: List['SyncNode']
-    node_type: SyncNodeType
-    node_role: Optional[SyncNodeRole]
-    metadata_notion: Optional[SyncMetadataNotion]
-    metadata_local: Optional[SyncMetadataLocal]
+    parent: Optional[Union['SyncNode', 'SyncTree']] = None
+    children: List['SyncNode'] = field(default_factory=lambda: [])
+    node_type: SyncNodeType = ''
+    node_role: Optional[SyncNodeRole] = None
+    metadata_notion: Optional[SyncMetadataNotion] = None
+    metadata_local: Optional[SyncMetadataLocal] = None
 
 
 @dataclass
@@ -51,19 +52,21 @@ class SyncTree(SyncNode):
     hidden_fields = ["parent"]
     yaml_tag = u'!SyncTree'
 
-    notion_synced_at: Optional[datetime]
-    local_synced_at: Optional[datetime]
+    notion_synced_at: Optional[datetime] = None
+    local_synced_at: Optional[datetime] = None
 
     @staticmethod
     def create_local() -> 'SyncTree':
         return SyncTree(
-            None, [],
-            'root',
-            None,
-            None,
-            SyncMetadataLocal('', datetime.now(), False),
-            None,
-            None
+            node_type='root',
+            metadata_local=SyncMetadataLocal(''),
+        )
+
+    @staticmethod
+    def create_notion(root_id: GUID) -> 'SyncTree':
+        return SyncTree(
+            node_type='root',
+            metadata_notion=SyncMetadataNotion(root_id)
         )
 
     def write(self, root_path: Path):
@@ -80,18 +83,18 @@ class SyncTree(SyncNode):
             return yaml.load(f, Loader=yaml.Loader)
 
 
-GLOB = str
+REGEX = str
 
 
 class Mapping:
-    mapping: Dict[GLOB, SyncNodeRole]
+    mapping: Dict[REGEX, SyncNodeRole]
     baked_mapping: List[Tuple[Pattern[AnyStr], SyncNodeRole]]
 
-    def __init__(self, mapping: Dict[GLOB, SyncNodeRole]) -> None:
+    def __init__(self, mapping: Dict[REGEX, SyncNodeRole]) -> None:
         super().__init__()
         self.mapping = mapping
         self.baked_mapping = [
-            (re.compile(fnmatch.translate(k)), v) for (k, v) in mapping.items()
+            (re.compile(k), v) for (k, v) in mapping.items()
         ]
 
     def match(self, path: str) -> Optional[SyncNodeRole]:
@@ -104,3 +107,6 @@ class Mapping:
             if rep.match(path):
                 return role
         return None
+
+    def roles(self) -> Set[SyncNodeRole]:
+        return set(self.mapping.values())

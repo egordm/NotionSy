@@ -76,14 +76,9 @@ class LocalProvider:
         """
         node_path = os.path.join(path, item)
         is_folder = os.path.isdir(node_path)
-
         return SyncNode(
-            parent,
-            [],
-            'folder' if is_folder else 'file',
-            None,
-            None,
-            SyncMetadataLocal(item, datetime.now().replace(year=1990), deleted=False)
+            parent=parent, node_type='folder' if is_folder else 'file',
+            metadata_local=SyncMetadataLocal(item)
         )
 
 

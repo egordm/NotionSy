@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Union, Optional
 
 from notion.block import Block, CollectionViewPageBlock, CollectionViewBlock, PageBlock
-from notion.collection import Collection, CollectionRowBlock
+from notion.collection import Collection, CollectionRowBlock, CollectionQuery
 
 
 def get_page_by_name(name, pages):
@@ -35,10 +35,13 @@ def iterate(page: Union[Block, Collection]):
     """
     if isinstance(page, Collection):
         return page.get_rows()
+    if isinstance(page, CollectionQuery):
+        return iterate(page.collection)
     if isinstance(page, CollectionViewPageBlock) or isinstance(page, CollectionViewBlock):
         return iterate(page.collection)
     if isinstance(page, CollectionRowBlock) or isinstance(page, PageBlock):
         return page.children
+
     return []
 
 
@@ -55,8 +58,8 @@ def filter_date_after(property: str, date: datetime):
             "value": {
                 "type": "exact",
                 "value": {
-                    "start_date": date.strftime('%y-%m-%d'),
-                    "type": "datetime"
+                    "start_date": date.strftime('%Y-%m-%d'),
+                    "type": "date"
                 }
             }
         },
