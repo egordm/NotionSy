@@ -1,4 +1,5 @@
 from datetime import datetime
+from itertools import groupby
 from typing import Union, List
 
 from notion.client import NotionClient
@@ -18,6 +19,11 @@ class NotionProvider:
         self.mapping = mapping
 
     def fetch_tree(self, tree: SyncTree) -> SyncTree:
+        """
+        Syncs the whole tree based on the given root page
+        :param tree:
+        :return:
+        """
         page = self.client.get_block(tree.metadata_notion.id)
         children = {child.metadata_notion.id: child for child in tree.children}
 
@@ -35,9 +41,17 @@ class NotionProvider:
         for (_, child) in children:
             child.metadata_notion.deleted = True
 
+        self.link_relations(tree)
+
         return tree
 
     def fetch_group(self, node: SyncNode, group: CollectionRowBlock) -> Union[SyncNode, SyncTree]:
+        """
+        Syncs inline listviews within the main page
+        :param node:
+        :param group:
+        :return:
+        """
         node_path = group.title
         node.node_role = self.mapping.match(node_path)
 
@@ -68,16 +82,43 @@ class NotionProvider:
         return node
 
     def fetch_item(self, group_path: str, node: SyncNode, item: CollectionRowBlock):
+        """
+        Syncs individual pages
+        :param group_path:
+        :param node:
+        :param item:
+        :return:
+        """
         node_path = f'{group_path}/{item.title}'
         node.node_role = self.mapping.match(node_path)
         node.metadata_notion = SyncMetadataNotion(
             item.id, max(node.metadata_notion.synced_at, item.updated or node.metadata_notion.synced_at)
         )
         node.metadata_notion.relations = {
-            role: getattr(item, role)
+            role: [related.id for related in getattr(item, role)]
             for role in self.mapping.roles() if hasattr(item, role)
         }
         return node
+
+    def link_relations(self, tree: SyncTree):
+        """
+        Adds addittional parent to child links for linked items
+        :param tree:
+        :return:
+        """
+        grouped = {k: list(v) for k, v in groupby(tree.flatten(), lambda item: item.node_role)}
+        grouped.pop(None)
+
+        for items in grouped.values():
+            for item in items:
+                if len(item.metadata_notion.relations) == 0:
+                    continue
+
+                for parent_role, parents in item.metadata_notion.relations.items():
+                    parent_items = filter(lambda i: i.metadata_notion.id in parents, grouped[parent_role])
+                    for parent in parent_items:
+                        # TODO: do we need to check for duplicates
+                        parent.children.append(item)
 
     def create_node(self, id: GUID, parent: SyncNode):
         return SyncNode(

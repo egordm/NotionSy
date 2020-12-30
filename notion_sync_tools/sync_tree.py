@@ -1,4 +1,5 @@
 import fnmatch
+import itertools
 import logging
 import os
 import re
@@ -23,7 +24,7 @@ class SyncMetadataNotion(yaml.YAMLObject):
     id: GUID
     synced_at: datetime = field(default_factory=lambda: datetime.now().replace(year=1990))
     deleted: bool = False
-    relations: Dict[SyncNodeRole, GUID] = field(default_factory=lambda: [])
+    relations: Dict[SyncNodeRole, List[GUID]] = field(default_factory=lambda: {})
 
 
 @dataclass
@@ -81,6 +82,13 @@ class SyncTree(SyncNode):
         logging.debug(f'Loading SyncTree from: {path}')
         with open(path, 'r') as f:
             return yaml.load(f, Loader=yaml.Loader)
+
+    def flatten(self) -> List[SyncNode]:
+        def flatten_node(node: SyncNode):
+            return [node, *itertools.chain(*[flatten_node(c) for c in node.children])]
+        return flatten_node(self)
+
+
 
 
 REGEX = str
