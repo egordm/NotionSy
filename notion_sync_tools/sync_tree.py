@@ -1,14 +1,17 @@
+import fnmatch
 import logging
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Dict, Tuple, Pattern, AnyStr
 
 import yaml
 
 from notion_sync_tools.utils.serialization import SecretYamlObject
 
 SyncNodeType = str
+SyncNodeRole = str
 GUID = str
 Path = str
 TREE_FILENAME = '.sync.yml'
@@ -38,6 +41,7 @@ class SyncNode(SecretYamlObject):
     parent: Optional[Union['SyncNode', 'SyncTree']]
     children: List['SyncNode']
     node_type: SyncNodeType
+    node_role: Optional[SyncNodeRole]
     metadata_notion: Optional[SyncMetadataNotion]
     metadata_local: Optional[SyncMetadataLocal]
 
@@ -56,6 +60,7 @@ class SyncTree(SyncNode):
             None, [],
             'root',
             None,
+            None,
             SyncMetadataLocal('', datetime.now(), False),
             None,
             None
@@ -73,3 +78,29 @@ class SyncTree(SyncNode):
         logging.debug(f'Loading SyncTree from: {path}')
         with open(path, 'r') as f:
             return yaml.load(f, Loader=yaml.Loader)
+
+
+GLOB = str
+
+
+class Mapping:
+    mapping: Dict[GLOB, SyncNodeRole]
+    baked_mapping: List[Tuple[Pattern[AnyStr], SyncNodeRole]]
+
+    def __init__(self, mapping: Dict[GLOB, SyncNodeRole]) -> None:
+        super().__init__()
+        self.mapping = mapping
+        self.baked_mapping = [
+            (re.compile(fnmatch.translate(k)), v) for (k, v) in mapping.items()
+        ]
+
+    def match(self, path: str) -> Optional[SyncNodeRole]:
+        """
+        Matches given path with specified role mapping
+        :param path:
+        :return:
+        """
+        for (rep, role) in self.baked_mapping:
+            if rep.match(path):
+                return role
+        return None

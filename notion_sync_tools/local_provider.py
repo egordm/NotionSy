@@ -2,15 +2,17 @@ import os
 from datetime import datetime
 from typing import Optional, Union
 
-from notion_sync_tools.sync_tree import Path, SyncTree, SyncNode, SyncMetadataLocal, TREE_FILENAME
+from notion_sync_tools.sync_tree import Path, SyncTree, SyncNode, SyncMetadataLocal, TREE_FILENAME, Mapping
 
 
 class LocalProvider:
     root_dir: Path
+    mapping: Mapping
 
-    def __init__(self, root_dir: Path) -> None:
+    def __init__(self, root_dir: Path, mapping: Mapping) -> None:
         super().__init__()
         self.root_dir = root_dir
+        self.mapping = mapping
 
     def fetch_tree(self, tree: SyncTree) -> SyncTree:
         """
@@ -34,6 +36,10 @@ class LocalProvider:
             node.metadata_local.deleted = True
             return node
 
+        # Update node
+        node.node_role = self.mapping.match(format_path(self.root_dir, os.path.relpath(node_path, self.root_dir)))
+
+        # Handle standalone files (leaves)
         if os.path.isfile(node_path):
             node.metadata_local.synced_at = max(
                 node.metadata_local.synced_at,
@@ -76,5 +82,14 @@ class LocalProvider:
             [],
             'folder' if is_folder else 'file',
             None,
+            None,
             SyncMetadataLocal(item, datetime.now().replace(year=1990), deleted=False)
         )
+
+
+def format_path(root_dir: Path, path: Path) -> Path:
+    if path == '.':
+        return '.'
+    if os.path.isdir(os.path.join(root_dir, path)):
+        return path.rstrip('/') + '/'
+    return path
