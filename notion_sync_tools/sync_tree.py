@@ -49,6 +49,16 @@ class SyncNode(SecretYamlObject):
     metadata_notion: Optional[SyncMetadataNotion] = None
     metadata_local: Optional[SyncMetadataLocal] = None
 
+    def flatten(self, filter_fn: Callable[['SyncNode'], bool] = None) -> List['SyncNode']:
+        if filter_fn is None:
+            filter_fn = lambda x: True
+
+        def flatten_node(node: SyncNode):
+            children = itertools.chain(*[flatten_node(c) for c in node.children])
+            return [node, *children] if filter_fn(node) else list(children)
+
+        return flatten_node(self)
+
 
 @dataclass
 class SyncTree(SyncNode):
@@ -84,18 +94,6 @@ class SyncTree(SyncNode):
         logging.debug(f'Loading SyncTree from: {path}')
         with open(path, 'r') as f:
             return yaml.load(f, Loader=yaml.Loader)
-
-    def flatten(self, filter_fn: Callable[[SyncNode], bool] = None) -> List[SyncNode]:
-        if filter_fn is None:
-            filter_fn = lambda x: True
-
-        def flatten_node(node: SyncNode):
-            if not filter_fn(node):
-                return []
-            children = filter(filter_fn, [flatten_node(c) for c in node.children])
-            return [node, *itertools.chain(*children)]
-
-        return flatten_node(self)
 
 
 REGEX = str

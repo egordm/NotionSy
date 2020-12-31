@@ -125,8 +125,8 @@ class NotionProvider:
                     parent_items = filter(lambda i: i.metadata_notion.id in parents, grouped[parent_role])
                     for parent in parent_items:
                         # TODO: do we need to check for duplicates?
+                        item.parent = parent
                         parent.children.append(item)
-                        items.parent = parent
 
     def create_node(self, id: GUID, title: str, parent: SyncNode):
         return SyncNode(

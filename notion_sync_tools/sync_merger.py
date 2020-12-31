@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Union, List
 
 from notion_sync_tools.sync_tree import SyncTree, SyncMetadataNotion, SyncMetadataLocal, SyncMetadata, SyncNodeRole, \
@@ -5,23 +6,38 @@ from notion_sync_tools.sync_tree import SyncTree, SyncMetadataNotion, SyncMetada
 
 
 class SyncMerger:
-    def merge(self, hierarchy: List[SyncNodeRole], tl: SyncTree, tr: SyncTree):
-        root_role, *hierarchy = hierarchy
-        res = SyncTree(
-            node_type='root',
+    def merge_nodes(self, hierarchy: List[SyncNodeRole], parent: SyncNode, tl: SyncNode, tr: SyncNode) -> SyncNode:
+        res = SyncNode(
+            parent=parent,
+            node_type=tl.node_type,
+            node_role=tl.node_role,
             metadata_notion=self.merge_metadata(tl.metadata_notion, tr.metadata_notion),
             metadata_local=self.merge_metadata(tl.metadata_local, tl.metadata_local)
         )
+
+        # If the hierarchy has ended we do not recurse into childrem
+        if len(hierarchy) == 0:
+            return res
+
+        # Try merging children (left is the preferred choice in conflict)
+        root_role, *hierarchy = hierarchy
+        logging.debug(f'Merging children for node_role: {root_role}')
         lchildren = {k: v for (k, v) in enumerate(tl.flatten(lambda item: item.node_role == root_role))}
         rchildren = {k: v for (k, v) in enumerate(tr.flatten(lambda item: item.node_role == root_role))}
-        children = []
         for k, lc in lchildren.items():
-            rck = next(filter(lambda rck: self.match_nodes(lc, rchildren[rck]), rchildren.keys()), None)
+            rck = next(filter(lambda k: self.match_nodes(lc, rchildren[k]), rchildren.keys()), None)
             if rck:
                 rc = rchildren.pop(rck)
-                lc = self.merge(lc, rc)  # TODO implement
-            children.append(lc)
-        children.append(rchildren.values())
+                lc = self.merge_nodes(hierarchy, res, lc, rc)  # TODO implement
+            lc.parent = res
+            res.children.append(lc)
+
+        # Add remaining children from the rhs
+        for rc in rchildren.values():
+            rc.parent = res
+            res.children.append(rc)
+
+        return res
 
     def match_nodes(self, nl: SyncNode, nr: SyncNode):
         if nl.metadata_local and nr.metadata_local and nl.metadata_local.path == nr.metadata_local.path:

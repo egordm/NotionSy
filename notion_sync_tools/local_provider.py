@@ -53,10 +53,16 @@ class LocalProvider:
         # Check for new items
         children = {child.metadata_local.path: child for child in node.children}
         for item in os.listdir(os.path.join(path, node.metadata_local.path)):
-            if item in children or item == TREE_FILENAME:
+            # Skip internal files
+            if item == TREE_FILENAME:
                 continue
 
-            children.pop(item)
+            # Remove valid children from the memo
+            if item in children:
+                children.pop(item)
+                continue
+
+            # Create the new child since it doent exist yet
             child = self.create_node(node_path, node, item)
             if child:
                 node.children.append(child)
