@@ -1,3 +1,4 @@
+import mimetypes
 import os
 from datetime import datetime
 from typing import Optional, Union
@@ -44,8 +45,8 @@ class LocalProvider:
 
         # Handle standalone files (leaves)
         if os.path.isfile(node_path):
-            node.metadata_local.synced_at = max(
-                node.metadata_local.synced_at,
+            node.metadata_local.updated_at = max(
+                node.metadata_local.updated_at,
                 datetime.fromtimestamp(os.path.getmtime(node_path))
             )
             return node
@@ -72,11 +73,9 @@ class LocalProvider:
             child.metadata_notion.deleted = True
 
         # Update children
-        synced_at = datetime.now().replace(year=1990)
         for child in node.children:
             self.fetch_node(node_path, child)
-            synced_at = max(synced_at, child.metadata_local.synced_at)
-        node.metadata_local.synced_at = synced_at
+        node.collect_updated_at(local=True)
 
         return node
 
@@ -90,6 +89,12 @@ class LocalProvider:
         """
         node_path = os.path.join(path, item)
         is_folder = os.path.isdir(node_path)
+        mime, _ = mimetypes.guess_type(node_path)
+
+        # Only folders and textual files allowed
+        if not is_folder and not mime.startswith('text'):
+            return None
+
         return SyncNode(
             parent=parent, node_type='folder' if is_folder else 'file',
             metadata_local=SyncMetadataLocal(item)

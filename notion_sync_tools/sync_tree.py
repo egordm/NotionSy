@@ -23,7 +23,7 @@ class SyncMetadataNotion(yaml.YAMLObject):
     yaml_tag = u'!SyncMetadataNotion'
     id: GUID
     title: str
-    synced_at: datetime = field(default_factory=lambda: datetime.now().replace(year=1990))
+    updated_at: datetime = field(default_factory=lambda: datetime.now().replace(year=1990))
     deleted: bool = False
     relations: Dict[SyncNodeRole, List[GUID]] = field(default_factory=lambda: {})
 
@@ -32,7 +32,7 @@ class SyncMetadataNotion(yaml.YAMLObject):
 class SyncMetadataLocal(yaml.YAMLObject):
     yaml_tag = u'!SyncMetadataLocal'
     path: Path
-    synced_at: datetime = field(default_factory=lambda: datetime.now().replace(year=1990))
+    updated_at: datetime = field(default_factory=lambda: datetime.now().replace(year=1990))
     deleted: bool = False
 
 SyncMetadata = Union[SyncMetadataNotion, SyncMetadataLocal]
@@ -49,7 +49,17 @@ class SyncNode(SecretYamlObject):
     metadata_notion: Optional[SyncMetadataNotion] = None
     metadata_local: Optional[SyncMetadataLocal] = None
 
+    @property
+    def unique_id(self):
+        return (self.metadata_notion.id if self.metadata_notion else '') + \
+         (self.metadata_local.path if self.metadata_local else '')
+
     def flatten(self, filter_fn: Callable[['SyncNode'], bool] = None) -> List['SyncNode']:
+        """
+        Flattens the node tree into one single list. Uses given filter to exclude nodes to the final list
+        :param filter_fn:
+        :return:
+        """
         if filter_fn is None:
             filter_fn = lambda x: True
 
@@ -58,6 +68,38 @@ class SyncNode(SecretYamlObject):
             return [node, *children] if filter_fn(node) else list(children)
 
         return flatten_node(self)
+
+    def collect_updated_at(self, notion=False, local=False, recursive=False):
+        """
+        Updates updated_at according to it's children
+        :param notion:
+        :param local:
+        :return:
+        """
+        # Check children dates first
+        if recursive:
+            for child in self.children:
+                child.collect_updated_at(notion, local, recursive)
+
+        def collect_notion(child: SyncNode):
+            return child.metadata_notion.updated_at if child.metadata_notion else datetime.now().replace(year=1990)
+
+        def collect_local(child: SyncNode):
+            return child.metadata_local.updated_at if child.metadata_local else datetime.now().replace(year=1990)
+
+        if notion:
+            self.metadata_notion.updated_at = max(
+                self.metadata_notion.updated_at,
+                self.metadata_notion.updated_at,
+                *map(collect_notion, self.children)
+            )
+        if local:
+            self.metadata_local.updated_at = max(
+                self.metadata_local.updated_at,
+                self.metadata_local.updated_at,
+                *map(collect_local, self.children)
+            )
+
 
 
 @dataclass

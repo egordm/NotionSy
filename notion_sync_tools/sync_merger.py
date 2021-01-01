@@ -26,7 +26,7 @@ class SyncMerger:
         rchildren = {k: v for (k, v) in enumerate(tr.flatten(lambda item: item.node_role == root_role))}
         for k, lc in lchildren.items():
             rck = next(filter(lambda k: self.match_nodes(lc, rchildren[k]), rchildren.keys()), None)
-            if rck:
+            if rck is not None:
                 rc = rchildren.pop(rck)
                 lc = self.merge_nodes(hierarchy, res, lc, rc)  # TODO implement
             lc.parent = res
@@ -48,10 +48,10 @@ class SyncMerger:
         def fuzzy_match(ml: SyncMetadataLocal, mr: SyncMetadataNotion):
             return ml.path.replace('.md', '') == mr.title
 
-        if nl.metadata_local and not nr.metadata_local and nl.metadata_notion and not nr.metadata_notion:
+        if nl.metadata_local and not nr.metadata_local and nr.metadata_notion and not nl.metadata_notion:
             return fuzzy_match(nl.metadata_local, nr.metadata_notion)
-        if not nl.metadata_local and nr.metadata_local and not nl.metadata_notion and nr.metadata_notion:
-            return fuzzy_match(nl.metadata_local, nr.metadata_notion)
+        if nr.metadata_local and not nl.metadata_local and nl.metadata_notion and not nr.metadata_notion:
+            return fuzzy_match(nr.metadata_local, nl.metadata_notion)
         return False
 
     def merge_metadata(self, ml: Optional[SyncMetadata], mr: Optional[SyncMetadata]):
@@ -68,4 +68,4 @@ class SyncMerger:
         if ml is None or mr is None:
             return mr if ml is None else mr
 
-        return mr if mr.synced_at < ml.synced_at else ml
+        return mr if mr.updated_at < ml.updated_at else ml

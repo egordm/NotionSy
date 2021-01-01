@@ -43,7 +43,7 @@ class NotionProvider:
             child.metadata_notion.deleted = True
 
         self.link_relations(tree)
-
+        tree.collect_updated_at(notion=True, recursive=True)
         return tree
 
     def fetch_group(self, node: SyncNode, group: CollectionRowBlock) -> Union[SyncNode, SyncTree]:
@@ -63,12 +63,11 @@ class NotionProvider:
         notion_children = group.views[0].build_query(
             sort=[{"direction": "descending", "property": "updated"}],
             # filter={"filters": [
-            #     filter_date_after('updated', node.metadata_notion.synced_at)
+            #     filter_date_after('updated', node.metadata_notion.updated_at)
             # ], "operator": "and"}
         )
 
         # Create new children or reuse existing ones if needed
-        synced_at = datetime.now().replace(year=1990)
         for item in iterate(notion_children):
             if group.id in children:
                 child = children.pop(group.id)
@@ -76,12 +75,12 @@ class NotionProvider:
                 child = self.create_node(item.id, item.title, node)
                 node.children.append(child)
             self.fetch_item(node_path, child, item)
-            synced_at = max(synced_at, child.metadata_notion.synced_at)
-        node.metadata_notion.synced_at = synced_at
 
         # Unused children are deleted
         for (_, child) in children:
             child.metadata_notion.deleted = True
+
+        node.collect_updated_at(notion=True)
 
         return node
 
@@ -99,7 +98,7 @@ class NotionProvider:
         node_path = f'{group_path}/{item.title}'
         node.node_role = self.mapping.match(node_path)
         node.metadata_notion = SyncMetadataNotion(
-            item.id, item.title, max(node.metadata_notion.synced_at, item.updated or node.metadata_notion.synced_at)
+            item.id, item.title, max(node.metadata_notion.updated_at, item.updated or node.metadata_notion.updated_at)
         )
         node.metadata_notion.relations = {
             role: [related.id for related in getattr(item, role)]
