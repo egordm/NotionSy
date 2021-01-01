@@ -5,7 +5,7 @@ from typing import Union, List
 from notion.client import NotionClient
 from notion.collection import CollectionRowBlock
 
-from notion_sync_tools.sync_tree import SyncTree, GUID, SyncNode, Path, Mapping, SyncMetadataNotion
+from notion_sync_tools.sync_tree import SyncTree, GUID, SyncNode, Path, Mapping, SyncMetadataNotion, SyncNodeType
 from notion_sync_tools.utils.notion import iterate, filter_date_after, find_prop
 
 
@@ -97,6 +97,7 @@ class NotionProvider:
 
         node_path = f'{group_path}/{item.title}'
         node.node_role = self.mapping.match(node_path)
+        node.node_type = SyncNodeType.NOTE
         node.metadata_notion = SyncMetadataNotion(
             item.id, item.title, max(node.metadata_notion.updated_at, item.updated or node.metadata_notion.updated_at)
         )
@@ -112,7 +113,7 @@ class NotionProvider:
         :param tree:
         :return:
         """
-        grouped = {k: list(v) for k, v in groupby(tree.flatten(), lambda item: item.node_role)}
+        grouped = {k: list(v) for k, v in groupby(tree.flatten(), lambda i: i.node_role)}
         grouped.pop(None)
 
         for items in grouped.values():
@@ -129,6 +130,6 @@ class NotionProvider:
 
     def create_node(self, id: GUID, title: str, parent: SyncNode):
         return SyncNode(
-            parent=parent, node_type='group',
+            parent=parent, node_type=SyncNodeType.GROUP,
             metadata_notion=SyncMetadataNotion(id, title=title)
         )

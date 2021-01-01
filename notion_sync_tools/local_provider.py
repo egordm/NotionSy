@@ -3,7 +3,8 @@ import os
 from datetime import datetime
 from typing import Optional, Union
 
-from notion_sync_tools.sync_tree import Path, SyncTree, SyncNode, SyncMetadataLocal, TREE_FILENAME, Mapping
+from notion_sync_tools.sync_tree import Path, SyncTree, SyncNode, SyncMetadataLocal, TREE_FILENAME, Mapping, \
+    SyncNodeType
 
 
 class LocalProvider:
@@ -96,7 +97,7 @@ class LocalProvider:
             return None
 
         return SyncNode(
-            parent=parent, node_type='folder' if is_folder else 'file',
+            parent=parent, node_type=SyncNodeType.GROUP if is_folder else SyncNodeType.NOTE,
             metadata_local=SyncMetadataLocal(item)
         )
 

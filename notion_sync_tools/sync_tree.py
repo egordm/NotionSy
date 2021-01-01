@@ -6,6 +6,7 @@ import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from typing import Optional, Union, List, Dict, Tuple, Pattern, AnyStr, Set, Callable
 from uuid import UUID
 
@@ -13,11 +14,36 @@ import yaml
 
 from notion_sync_tools.utils.serialization import SecretYamlObject
 
-SyncNodeType = str
 SyncNodeRole = str
 GUID = str
 Path = str
 TREE_FILENAME = '.sync.yml'
+
+
+class SyncNodeType(Enum):
+    ROOT = 'ROOT'
+    NOTE = 'NOTE'
+    GROUP = 'GROUP'
+    UNKNOWN = 'UNKNOWN'
+
+    def __str__(self):
+        return self.value
+
+
+def enum_representer(tag: str):
+    def rep(dumper, data):
+        return dumper.represent_scalar(tag, str(data.value))
+    return rep
+
+
+def enum_deserailize(enum):
+    def rep(loader, node):
+        return enum(node.value)
+    return rep
+
+
+yaml.add_representer(SyncNodeType, enum_representer('!SyncNodeType'))
+yaml.add_constructor('!SyncNodeType', enum_deserailize(SyncNodeType))
 
 
 @dataclass
@@ -29,7 +55,6 @@ class SyncMetadataNotion(yaml.YAMLObject):
     id: GUID
     title: str
     updated_at: datetime = field(default_factory=lambda: datetime.now().replace(year=1990))
-    synced_at: Optional[datetime] = None
     deleted: bool = False
     relations: Dict[SyncNodeRole, List[GUID]] = field(default_factory=lambda: {})
 
@@ -45,7 +70,6 @@ class SyncMetadataLocal(yaml.YAMLObject):
     yaml_tag = u'!SyncMetadataLocal'
     path: Path
     updated_at: datetime = field(default_factory=lambda: datetime.now().replace(year=1990))
-    synced_at: Optional[datetime] = None
     deleted: bool = False
 
     def __str__(self) -> str:
@@ -66,12 +90,13 @@ class SyncNode(SecretYamlObject):
     id: UUID = field(default_factory=lambda: uuid.uuid4())
     parent: Optional[Union['SyncNode', 'SyncTree']] = None
     children: List['SyncNode'] = field(default_factory=lambda: [])
-    node_type: SyncNodeType = ''
+    node_type: SyncNodeType = field(default_factory=lambda: SyncNodeType.UNKNOWN)
     node_role: Optional[SyncNodeRole] = None
     metadata_notion: Optional[SyncMetadataNotion] = None
     metadata_local: Optional[SyncMetadataLocal] = None
+    synced_at: Optional[datetime] = None
 
-    def copy_metadata(self, node: 'SyncNode'):
+    def copy_metadata_from(self, node: 'SyncNode'):
         """
         Copies all provider based metadata from the given node to the current node
         :param node:
@@ -81,6 +106,7 @@ class SyncNode(SecretYamlObject):
         self.metadata_local = node.metadata_local
         self.metadata_notion = node.metadata_notion
         self.node_role = node.node_role
+        self.synced_at = node.synced_at
 
     def clone_childless(self, parent: 'SyncNode'):
         """
@@ -92,7 +118,7 @@ class SyncNode(SecretYamlObject):
             parent=parent,
             node_type=self.node_type
         )
-        res.copy_metadata(self)
+        res.copy_metadata_from(self)
         return res
 
     def flatten(self, filter_fn: Callable[['SyncNode'], bool] = None) -> List['SyncNode']:
@@ -142,6 +168,14 @@ class SyncNode(SecretYamlObject):
                 *map(collect_local, self.children)
             )
 
+    def changed(self) -> Tuple[bool, bool]:
+        return (
+            (not self.metadata_notion or not self.synced_at or self.metadata_local.updated_at > self.synced_at)
+            if self.metadata_local else False,
+            (not self.metadata_local or not self.synced_at or self.metadata_notion.updated_at > self.synced_at)
+            if self.metadata_notion else False
+        )
+
 
 @dataclass
 class SyncTree(SyncNode):
@@ -154,14 +188,14 @@ class SyncTree(SyncNode):
     @staticmethod
     def create_local() -> 'SyncTree':
         return SyncTree(
-            node_type='root',
+            node_type=SyncNodeType.ROOT,
             metadata_local=SyncMetadataLocal(''),
         )
 
     @staticmethod
     def create_notion(root_id: GUID) -> 'SyncTree':
         return SyncTree(
-            node_type='root',
+            node_type=SyncNodeType.ROOT,
             metadata_notion=SyncMetadataNotion(root_id, '')
         )
 

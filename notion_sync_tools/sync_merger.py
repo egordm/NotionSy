@@ -25,8 +25,8 @@ class SyncMerger:
             metadata_notion=self.merge_metadata(tl.metadata_notion, tr.metadata_notion),
             metadata_local=self.merge_metadata(tl.metadata_local, tl.metadata_local)
         )
-        tl.copy_metadata(res)
-        tr.copy_metadata(res)
+        tl.copy_metadata_from(res)
+        tr.copy_metadata_from(res)
 
         # If the hierarchy has ended we do not recurse into childrem
         if len(hierarchy) == 0:
@@ -45,13 +45,31 @@ class SyncMerger:
                 rc = rchildren.pop(rck)
                 lc = self.merge_nodes(hierarchy, lc, rc, res)  # TODO implement
             else:
-                lc = lc.clone_childless(res)
+                lc = self.merge_branch(hierarchy, lc, res)
             lc.parent = res
             res.children.append(lc)
 
         # Add remaining children from the rhs
         for rc in rchildren.values():
-            res.children.append(rc.clone_childless(res))
+            res.children.append(self.merge_branch(hierarchy, rc, res))
+
+        return res
+
+    def merge_branch(
+            self, hierarchy: List[SyncNodeRole], tl: SyncNode, parent: Optional[SyncNode] = None
+    ) -> SyncNode:
+        res = tl.clone_childless(parent)
+
+        # If the hierarchy has ended we do not recurse into childrem
+        if len(hierarchy) == 0:
+            return res
+
+        # Try merging children (left is the preferred choice in conflict)
+        root_role, *hierarchy = hierarchy
+        match_role = lambda item: item.node_role == root_role
+        # Add remaining children
+        for c in tl.flatten(match_role):
+            res.children.append(self.merge_branch(hierarchy, c, res))
 
         return res
 
@@ -63,6 +81,8 @@ class SyncMerger:
         :param nr:
         :return:
         """
+        if nl.id == nr.id:
+            return True
         if nl.metadata_local and nr.metadata_local and nl.metadata_local.path == nr.metadata_local.path:
             return True
         if nl.metadata_notion and nr.metadata_notion and nl.metadata_notion.id == nr.metadata_notion.id:
