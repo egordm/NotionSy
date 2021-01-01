@@ -3,9 +3,11 @@ import itertools
 import logging
 import os
 import re
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, Union, List, Dict, Tuple, Pattern, AnyStr, Set, Callable
+from uuid import UUID
 
 import yaml
 
@@ -20,28 +22,48 @@ TREE_FILENAME = '.sync.yml'
 
 @dataclass
 class SyncMetadataNotion(yaml.YAMLObject):
+    """
+    Struct responsible for storing the required metadata for notion provider
+    """
     yaml_tag = u'!SyncMetadataNotion'
     id: GUID
     title: str
     updated_at: datetime = field(default_factory=lambda: datetime.now().replace(year=1990))
+    synced_at: Optional[datetime] = None
     deleted: bool = False
     relations: Dict[SyncNodeRole, List[GUID]] = field(default_factory=lambda: {})
+
+    def __str__(self) -> str:
+        return f'{self.title}\n\t{self.updated_at.strftime("%Y-%m-%d %H:%M")}|{self.deleted}'
 
 
 @dataclass
 class SyncMetadataLocal(yaml.YAMLObject):
+    """
+    Struct responsible for storing the required metadata for local provider
+    """
     yaml_tag = u'!SyncMetadataLocal'
     path: Path
     updated_at: datetime = field(default_factory=lambda: datetime.now().replace(year=1990))
+    synced_at: Optional[datetime] = None
     deleted: bool = False
+
+    def __str__(self) -> str:
+        return f'{self.path}\n\t{self.updated_at.strftime("%Y-%m-%d %H:%M")}|{self.deleted}'
+
 
 SyncMetadata = Union[SyncMetadataNotion, SyncMetadataLocal]
 
+
 @dataclass
 class SyncNode(SecretYamlObject):
+    """
+    General node struct toring data about a sync node which may be a directory/group or a file
+    """
     hidden_fields = ["parent"]
     yaml_tag = u'!SyncNode'
 
+    id: UUID = field(default_factory=lambda: uuid.uuid4())
     parent: Optional[Union['SyncNode', 'SyncTree']] = None
     children: List['SyncNode'] = field(default_factory=lambda: [])
     node_type: SyncNodeType = ''
@@ -49,10 +71,29 @@ class SyncNode(SecretYamlObject):
     metadata_notion: Optional[SyncMetadataNotion] = None
     metadata_local: Optional[SyncMetadataLocal] = None
 
-    @property
-    def unique_id(self):
-        return (self.metadata_notion.id if self.metadata_notion else '') + \
-         (self.metadata_local.path if self.metadata_local else '')
+    def copy_metadata(self, node: 'SyncNode'):
+        """
+        Copies all provider based metadata from the given node to the current node
+        :param node:
+        :return:
+        """
+        self.id = node.id
+        self.metadata_local = node.metadata_local
+        self.metadata_notion = node.metadata_notion
+        self.node_role = node.node_role
+
+    def clone_childless(self, parent: 'SyncNode'):
+        """
+        Clones all provider based data into a new node
+        :param parent:
+        :return:
+        """
+        res = SyncNode(
+            parent=parent,
+            node_type=self.node_type
+        )
+        res.copy_metadata(self)
+        return res
 
     def flatten(self, filter_fn: Callable[['SyncNode'], bool] = None) -> List['SyncNode']:
         """
@@ -72,14 +113,15 @@ class SyncNode(SecretYamlObject):
     def collect_updated_at(self, notion=False, local=False, recursive=False):
         """
         Updates updated_at according to it's children
+        :param recursive:
         :param notion:
         :param local:
         :return:
         """
         # Check children dates first
         if recursive:
-            for child in self.children:
-                child.collect_updated_at(notion, local, recursive)
+            for c in self.children:
+                c.collect_updated_at(notion, local, recursive)
 
         def collect_notion(child: SyncNode):
             return child.metadata_notion.updated_at if child.metadata_notion else datetime.now().replace(year=1990)
@@ -99,7 +141,6 @@ class SyncNode(SecretYamlObject):
                 self.metadata_local.updated_at,
                 *map(collect_local, self.children)
             )
-
 
 
 @dataclass
@@ -124,6 +165,18 @@ class SyncTree(SyncNode):
             metadata_notion=SyncMetadataNotion(root_id, '')
         )
 
+
+@dataclass
+class SyncData(SecretYamlObject):
+    """
+    Data object storing all the necessary data for sync
+    """
+    hidden_fields = []
+    yaml_tag = u'!SyncData'
+
+    notion_tree: SyncTree
+    local_tree: SyncTree
+
     def write(self, root_path: Path):
         path = os.path.join(root_path, TREE_FILENAME)
         logging.debug(f'Flushing SyncTree to: {path}')
@@ -142,6 +195,9 @@ REGEX = str
 
 
 class Mapping:
+    """
+    Struct storing the data to map the sync object to their roles based on the provider
+    """
     mapping: Dict[REGEX, SyncNodeRole]
     baked_mapping: List[Tuple[Pattern[AnyStr], SyncNodeRole]]
 
