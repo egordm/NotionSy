@@ -33,12 +33,14 @@ class SyncNodeType(Enum):
 def enum_representer(tag: str):
     def rep(dumper, data):
         return dumper.represent_scalar(tag, str(data.value))
+
     return rep
 
 
 def enum_deserailize(enum):
     def rep(loader, node):
         return enum(node.value)
+
     return rep
 
 
@@ -176,13 +178,20 @@ class SyncNode(SecretYamlObject):
             if self.metadata_notion else False
         )
 
-    def full_local_path(self):
+    def local_dir(self) -> Path:
         parts = []
-        node = self
-        while node.parent is not None:
+        node = self.parent
+        while node is not None:
             parts.append(node.metadata_local.path)
             node = node.parent
+        if len(parts) == 0:
+            return ''
+        elif len(parts) == 1:
+            return parts[0]
         return os.path.join(*reversed(parts))
+
+    def local_path(self) -> Path:
+        return os.path.join(self.local_dir(), self.metadata_local.path)
 
 
 @dataclass

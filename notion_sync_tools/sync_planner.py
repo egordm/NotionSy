@@ -5,7 +5,7 @@ from enum import Enum
 from functools import partial
 from itertools import chain
 from operator import is_not
-from typing import List
+from typing import List, Optional
 
 from notion_sync_tools.sync_tree import SyncNode, SyncNodeType
 
@@ -28,14 +28,24 @@ class SyncAction:
     node: SyncNode
     changed_at: datetime
     conflicts: List['SyncAction'] = field(default_factory=lambda: [])
+    content: Optional[str] = field(default_factory=lambda: '')
 
     def __str__(self) -> str:
         if self.action_type != SyncActionType.CONFLICT:
             changed_at = self.changed_at.strftime("%Y-%m-%d %H:%M")
-            return f'{self.action_type} FROM {self.action_target} FOR {self.node.id} SINCE {changed_at}'
+            title = self.node.metadata_notion.title if self.action_target == SyncActionTarget.NOTION \
+                else self.node.metadata_local.path
+            return f'{self.action_type} FROM {self.action_target} FOR {self.node.id}|{title} SINCE {changed_at}'
         else:
             children = ''.join(['\n\t' + str(c) for c in self.conflicts])
             return f'{self.action_type} AT:{children}'
+
+    @property
+    def should_create(self) -> bool:
+        return self.action_type != SyncActionType.DELETE and (
+                (self.action_target == SyncActionTarget.LOCAL and not self.node.metadata_notion) or
+                (self.action_target == SyncActionTarget.NOTION and not self.node.metadata_local)
+        )
 
     @staticmethod
     def delete(action_target: SyncActionTarget, node: SyncNode) -> 'SyncAction':
@@ -101,4 +111,17 @@ class SyncConflictResolver:
             logging.info(f'Automatically resolving conflict: \n\t{action}\nReason: Structural Content')
             return action.conflicts
 
-        raise NotImplemented()
+        print(f'Conflict occurred: \n{str(action)}\n')
+        while True:
+            choice = input('Would you like to prefer [l]ocal changes, [n]otion changes, [s]kip or [a]bort sync:')
+            if choice not in 'lnas':
+                continue
+
+            if choice == 'l':
+                return list(filter(lambda a: a.action_target == SyncActionTarget.NOTION, action.conflicts))
+            elif choice == 'n':
+                return list(filter(lambda a: a.action_target == SyncActionTarget.LOCAL, action.conflicts))
+            elif choice == 's':
+                return []
+            elif choice == 'a':
+                exit(0)

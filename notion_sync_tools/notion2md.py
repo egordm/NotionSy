@@ -13,7 +13,6 @@ from notion.block import Block, HeaderBlock, SubheaderBlock, SubsubheaderBlock, 
 @dataclass
 class NotionMarkdownExporter:
     image_dir: str
-    download_dir: str
     num_index_stack: List[int] = field(default_factory=lambda: [1])
 
     def export_block(self, block: Block, indent: int = 0) -> str:
@@ -48,17 +47,17 @@ class NotionMarkdownExporter:
             res += self.export_blocks(block.children, indent + 1)
         elif isinstance(block, ImageBlock):
             img_path = self.image_export(block.caption, block.source)
-            res += f'!{link_format(block.caption or img_path, img_path)}'
+            res += f'\n!{link_format(block.caption or img_path, img_path)}'
         elif isinstance(block, CodeBlock):
-            res += f'```{block.language}\n{block.title}\n```'
+            res += f'\n```{block.language}\n{block.title}\n```'
         elif isinstance(block, EquationBlock):
-            res += f'$$\n{block.latex}\n$$'
+            res += f'\n$$\n{block.latex}\n$$'
         elif isinstance(block, DividerBlock):
             res += '---'
         elif isinstance(block, TodoBlock):
             res += f'- [x] {title}' if block.checked else f'- [ ] {title}'
         elif isinstance(block, QuoteBlock):
-            res += f'> {title}'
+            res += f'\n> {title}'
 
         return res
 
@@ -92,19 +91,20 @@ class NotionMarkdownExporter:
     def image_export(self, caption: str, url: str):
         """
         make image file based on url and count.
+        :param caption: image caption to use for filename
         :param url: url of image
-        :param index: the number of image in the page
         :return: image_path for the link in markdown
         """
-        if self.image_dir == "":
-            os.makedirs(self.image_dir, exist_ok=True)
+        os.makedirs(self.image_dir, exist_ok=True)
 
         caption, _ = os.path.splitext(caption)
         filename = f'{caption}-{uuid.uuid4()}'
 
         r = requests.get(url, allow_redirects=True)
         content_type = r.headers['content-type']
-        image_path = os.path.join(self.image_dir, f'{filename}.{mimetypes.guess_extension(content_type)}')
+        image_path = os.path.abspath(
+            os.path.join(self.image_dir, f'{filename}{mimetypes.guess_extension(content_type)}')
+        )
         with open(image_path, 'wb') as f:
             f.write(r.content)
         return image_path

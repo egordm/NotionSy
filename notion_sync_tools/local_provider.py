@@ -1,20 +1,20 @@
+import logging
 import mimetypes
 import os
+import shutil
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Union
 
+from notion_sync_tools.sync_planner import SyncAction, SyncActionTarget, SyncActionType
 from notion_sync_tools.sync_tree import Path, SyncTree, SyncNode, SyncMetadataLocal, TREE_FILENAME, Mapping, \
     SyncNodeType
 
 
+@dataclass
 class LocalProvider:
     root_dir: Path
     mapping: Mapping
-
-    def __init__(self, root_dir: Path, mapping: Mapping) -> None:
-        super().__init__()
-        self.root_dir = root_dir
-        self.mapping = mapping
 
     def fetch_tree(self, tree: SyncTree) -> SyncTree:
         """
@@ -100,6 +100,38 @@ class LocalProvider:
             parent=parent, node_type=SyncNodeType.GROUP if is_folder else SyncNodeType.NOTE,
             metadata_local=SyncMetadataLocal(item)
         )
+
+    def action_upstream(self, action: SyncAction):
+        assert action.action_target == SyncActionTarget.NOTION
+        if action.action_type == SyncActionType.FETCH:
+            if action.node.node_type == SyncNodeType.NOTE:
+                filename = f'{action.node.metadata_notion.title}.md'
+                filepath = os.path.join(self.root_dir, action.node.local_dir(), filename)
+                with open(filepath, 'w') as f:
+                    f.write(action.content)
+                action.node.metadata_local = SyncMetadataLocal(
+                    path=filename,
+                    updated_at=datetime.now()
+                )
+            elif action.node.node_type == SyncNodeType.GROUP:
+                filename = action.node.metadata_notion.title
+                filepath = os.path.join(self.root_dir, action.node.local_dir(), filename)
+                os.makedirs(filepath, exist_ok=True)
+                action.node.metadata_local = SyncMetadataLocal(
+                    path=filename,
+                    updated_at=datetime.now()
+                )
+
+    def action_downstream(self, action: SyncAction):
+        assert action.action_target == SyncActionTarget.LOCAL
+        if action.action_type == SyncActionType.DELETE:
+            # Delete a node
+            logging.debug(f'ACTION - NOTION: Deleting local node: {action.node.metadata_notion.id}')
+            shutil.rmtree(os.path.join(self.root_dir, action.node.local_path()))
+        elif action.action_type == SyncActionType.FETCH:
+            if action.node.node_type == SyncNodeType.NOTE:
+                with open(os.path.join(self.root_dir, action.node.local_path()), 'r') as f:
+                    action.content = f.read()
 
 
 def format_path(root_dir: Path, path: Path) -> Path:

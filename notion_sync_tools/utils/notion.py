@@ -1,5 +1,6 @@
 __all__ = ['get_page_by_name', 'get_prop_by_name', 'iterate', 'filter_date_after', 'find_prop']
 
+from copy import copy
 from datetime import datetime
 from typing import Union, Optional
 
@@ -7,7 +8,7 @@ from notion.block import Block, CollectionViewPageBlock, CollectionViewBlock, Pa
 from notion.collection import Collection, CollectionRowBlock, CollectionQuery
 
 
-def get_page_by_name(name, pages):
+def get_page_by_name(name, pages) -> Optional[Block]:
     """
     Retuns a page with a matching title given a list of pages/blocks
     :param name:
@@ -75,3 +76,23 @@ def find_prop(slug: str, collection: Collection) -> Optional[dict]:
     :return:
     """
     return next(filter(lambda p: p['slug'] == slug, collection.get_schema_properties()), None)
+
+
+def copy_properties(old: Block, new: Block, depth: int = 1):
+    props = list(map(lambda p: p['slug'], old.schema)) if hasattr(old, 'schema') else dir(old)
+    for prop in props:
+        try:
+            if not prop.startswith('_'):
+                attr = getattr(old, prop)
+                # copying tags creates a whole new set of problems
+                if prop != 'tags' and attr != '' and not callable(attr):
+                    setattr(new, prop, copy(attr))
+            # notion-py raises AttributeError when it can't assign an attribute
+        except AttributeError:
+            pass
+
+    if depth > 0:
+        if bool(old.children):
+            for old_child in old.children:
+                new_child = new.children.add_new(old_child.__class__)
+                copy_properties(old_child, new_child, depth - 1)
