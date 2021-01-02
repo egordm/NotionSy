@@ -176,6 +176,14 @@ class SyncNode(SecretYamlObject):
             if self.metadata_notion else False
         )
 
+    def full_local_path(self):
+        parts = []
+        node = self
+        while node.parent is not None:
+            parts.append(node.metadata_local.path)
+            node = node.parent
+        return os.path.join(*reversed(parts))
+
 
 @dataclass
 class SyncTree(SyncNode):

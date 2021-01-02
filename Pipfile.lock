@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "ffc69aeab8c8597263087d070bfdbeaa2a592c3bae85f1b6c441ef25d251205b"
+            "sha256": "02f704a24b89e07d245d2f8f01ece31f8de433ef1276a8de028f6257730da5da"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -129,6 +129,13 @@
                 "sha256:84a3c62a882b7c5686bd571ee13279cdce883f34cfcbf7af1235491389a6394b"
             ],
             "ref": "faa9ee8d86ae8ea79757ff72c78fad618c8b811c"
+        },
+        "notion2md": {
+            "hashes": [
+                "sha256:6aaebbfbc1ca5aa76a28dc8dc0d4f167450d98d30295bddd007418de9597275a"
+            ],
+            "index": "pypi",
+            "version": "==1.2.3.1"
         },
         "python-slugify": {
             "hashes": [

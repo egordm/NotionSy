@@ -19,6 +19,7 @@ urllib3 = {version = ">=1.24.2"}
 notion = {editable = true, ref = "feature/md-equations", git = "https://github.com/EgorDm/notion-py.git"}
 md2notion = {editable = true, ref = "feature/md-equations", git = "https://github.com/EgorDm/md2notion.git"}
 graphviz = "*"
+notion2md = "*"
 
 [requires]
 python_version = "3.8"
