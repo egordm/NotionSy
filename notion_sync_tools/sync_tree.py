@@ -1,13 +1,11 @@
-import fnmatch
 import itertools
 import logging
 import os
-import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Union, List, Dict, Tuple, Pattern, AnyStr, Set, Callable
+from typing import Optional, Union, List, Dict, Tuple, Callable
 from uuid import UUID
 
 import yaml
@@ -18,6 +16,7 @@ SyncNodeRole = str
 GUID = str
 Path = str
 TREE_FILENAME = '.sync.yml'
+INTERNAL_FILES = [TREE_FILENAME, 'resources']
 
 
 class SyncNodeType(Enum):
@@ -240,35 +239,3 @@ class SyncData(SecretYamlObject):
         logging.debug(f'Loading SyncTree from: {path}')
         with open(path, 'r') as f:
             return yaml.load(f, Loader=yaml.Loader)
-
-
-REGEX = str
-
-
-class Mapping:
-    """
-    Struct storing the data to map the sync object to their roles based on the provider
-    """
-    mapping: Dict[REGEX, SyncNodeRole]
-    baked_mapping: List[Tuple[Pattern[AnyStr], SyncNodeRole]]
-
-    def __init__(self, mapping: Dict[REGEX, SyncNodeRole]) -> None:
-        super().__init__()
-        self.mapping = mapping
-        self.baked_mapping = [
-            (re.compile(k), v) for (k, v) in mapping.items()
-        ]
-
-    def match(self, path: str) -> Optional[SyncNodeRole]:
-        """
-        Matches given path with specified role mapping
-        :param path:
-        :return:
-        """
-        for (rep, role) in self.baked_mapping:
-            if rep.match(path):
-                return role
-        return None
-
-    def roles(self) -> Set[SyncNodeRole]:
-        return set(self.mapping.values())

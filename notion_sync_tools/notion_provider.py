@@ -12,20 +12,27 @@ from notion.block import CollectionViewBlock
 from notion.client import NotionClient
 from notion.collection import CollectionRowBlock, Collection
 
+from notion_sync_tools.base_provider import BaseProvider
 from notion_sync_tools.notion2md import NotionMarkdownExporter
 from notion_sync_tools.sync_planner import SyncAction, SyncActionTarget, SyncActionType
-from notion_sync_tools.sync_tree import SyncTree, GUID, SyncNode, Mapping, SyncMetadataNotion, SyncNodeType, \
+from notion_sync_tools.sync_tree import SyncTree, GUID, SyncNode, SyncMetadataNotion, SyncNodeType, \
     SyncNodeRole, Path
+from notion_sync_tools.sync_mapping import Mapping, NotionResourceMapper, ResourceAction, SyncModel
 from notion_sync_tools.utils.notion import iterate
 
 
 @dataclass
-class NotionProvider:
+class NotionProvider(BaseProvider):
     client: NotionClient
-    mapping: Mapping
-    root_dir: Path
-    structure_types: Dict[SyncNodeRole, SyncNodeType]
-    content_mapping: Dict[SyncNodeRole, SyncNode] = field(default_factory=lambda: {})
+    model: SyncModel
+
+    @property
+    def mapping(self) -> Mapping:
+        return self.model.notion_mapping
+
+    @property
+    def root_dir(self) -> Path:
+        return self.model.root_dir
 
     def fetch_tree(self, tree: SyncTree) -> SyncTree:
         """
@@ -107,7 +114,7 @@ class NotionProvider:
 
         node_path = f'{group_path}/{item.title}'
         node.node_role = self.mapping.match(node_path)
-        node.node_type = self.structure_types[node.node_role]
+        node.node_type = self.model.structure_types[node.node_role]
         node.metadata_notion = SyncMetadataNotion(
             item.id, item.title, max(node.metadata_notion.updated_at, item.updated or node.metadata_notion.updated_at)
         )
@@ -153,23 +160,13 @@ class NotionProvider:
                 if node.parent and not node.parent.node_role:
                     return node.parent
 
-        self.content_mapping = {k: find_parent(v) for k, v in grouped.items()}
+        self.model.resource_mapper.content_mapping = {k: find_parent(v) for k, v in grouped.items()}
 
     def action_upstream(self, action: SyncAction):
         assert action.action_target == SyncActionTarget.LOCAL
-        if action.action_type == SyncActionType.FETCH:
-            if action.should_create:
-                # Create a new node
-                if action.node.node_role == 'course':
-                    self.create_course(action.node, action)
-                if action.node.node_role == 'lecture':
-                    self.create_lecture(action.node, action)
-            else:
-                if action.node.node_role == 'course':
-                    self.update_course(action.node, action)
-                if action.node.node_role == 'lecture':
-                    self.update_lecture(action.node, action)
-
+        if action.action_type == SyncActionType.FETCH and action.node.node_role:
+            resource_action = ResourceAction.CREATE if action.should_create else ResourceAction.UPDATE
+            self.model.resource_mapper.execute(resource_action, action.node.node_role, action)
             action.node.synced_at = action.changed_at
 
     def action_downstream(self, action: SyncAction):
@@ -185,54 +182,3 @@ class NotionProvider:
                 )
                 page = self.client.get_block(action.node.metadata_notion.id)
                 action.content = exporter.export_page(page)
-
-    def create_course(self, node: SyncNode, action: SyncAction):
-        parent = self.content_mapping.get(node.node_role)
-        lecture_collection = self.client.get_block(self.content_mapping['lecture'].metadata_notion.id).collection
-        course_collection: Collection = self.client.get_block(parent.metadata_notion.id).collection
-
-        page = course_collection.add_row()
-        page.title = node.metadata_local.path.replace('.md', '')
-        cvb: CollectionViewBlock = page.children.add_new(CollectionViewBlock, collection=lecture_collection)
-        view = cvb.views.add_new(view_type="list")
-        view.set('query2', {'filter': {'filters': [{'filter': {'value': {'type': 'exact',
-                                                                         'value': page.id},
-                                                               'operator': 'relation_contains'},
-                                                    'property': 'TKKM'}],
-                                       'operator': 'and'}})
-
-        node.metadata_notion = SyncMetadataNotion(
-            id=page.id,
-            title=page.title,
-            updated_at=datetime.now(),
-        )
-
-    def update_course(self, node: SyncNode, action: SyncAction):
-        pass
-
-    def create_lecture(self, node: SyncNode, action: SyncAction):
-        lecture_collection = self.client.get_block(self.content_mapping['lecture'].metadata_notion.id).collection
-
-        page = lecture_collection.add_row()
-        page.title = node.metadata_local.path.replace('.md', '')
-        page.course = [node.parent.metadata_notion.id]
-        content = io.StringIO(action.content)
-        content.__dict__["name"] = node.metadata_local.path.replace('.md', '')
-        upload(content, page, notionPyRendererCls=LatexNotionPyRenderer)
-
-        node.metadata_notion = SyncMetadataNotion(
-            id=page.id,
-            title=page.title,
-            updated_at=datetime.now(),
-            relations={'course': [node.parent.metadata_notion.id]}
-        )
-
-    def update_lecture(self, node: SyncNode, action: SyncAction):
-        page = self.client.get_block(node.metadata_notion.id)
-        for c in page.children:
-            c.remove()
-
-        content = io.StringIO(action.content)
-        content.__dict__["name"] = node.metadata_local.path.replace('.md', '')
-        upload(content, page, notionPyRendererCls=LatexNotionPyRenderer)
-        node.metadata_notion.updated_at = datetime.now()

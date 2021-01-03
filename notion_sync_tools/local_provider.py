@@ -6,15 +6,24 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Union
 
+from notion_sync_tools.base_provider import BaseProvider
 from notion_sync_tools.sync_planner import SyncAction, SyncActionTarget, SyncActionType
-from notion_sync_tools.sync_tree import Path, SyncTree, SyncNode, SyncMetadataLocal, TREE_FILENAME, Mapping, \
-    SyncNodeType
+from notion_sync_tools.sync_tree import Path, SyncTree, SyncNode, SyncMetadataLocal, TREE_FILENAME, SyncNodeType, \
+    INTERNAL_FILES
+from notion_sync_tools.sync_mapping import Mapping, SyncModel
 
 
 @dataclass
-class LocalProvider:
-    root_dir: Path
-    mapping: Mapping
+class LocalProvider(BaseProvider):
+    model: SyncModel
+
+    @property
+    def mapping(self) -> Mapping:
+        return self.model.local_mapping
+
+    @property
+    def root_dir(self) -> Path:
+        return self.model.root_dir
 
     def fetch_tree(self, tree: SyncTree) -> SyncTree:
         """
@@ -56,7 +65,7 @@ class LocalProvider:
         children = {child.metadata_local.path: child for child in node.children}
         for item in os.listdir(os.path.join(path, node.metadata_local.path)):
             # Skip internal files
-            if item == TREE_FILENAME:
+            if item in INTERNAL_FILES:
                 continue
 
             # Remove valid children from the memo

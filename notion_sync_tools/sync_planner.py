@@ -84,6 +84,10 @@ class SyncPlanner:
         ]
 
     def plan_node(self, node: SyncNode) -> List[SyncAction]:
+        # Skip nodes nto corresponding to any concrete data
+        if not node.node_role:
+            return []
+
         changed_local, changed_notion = node.changed()
         if not changed_local and not changed_notion:
             return []
