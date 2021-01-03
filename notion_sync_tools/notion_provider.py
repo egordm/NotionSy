@@ -2,23 +2,19 @@ import io
 import logging
 import os
 from dataclasses import field, dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from itertools import groupby
 from typing import Union, Dict, List
 
-from md2notion.NotionPyRenderer import LatexNotionPyRenderer
-from md2notion.upload import upload
-from notion.block import CollectionViewBlock
 from notion.client import NotionClient
 from notion.collection import CollectionRowBlock, Collection
 
 from notion_sync_tools.base_provider import BaseProvider
 from notion_sync_tools.notion2md import NotionMarkdownExporter
 from notion_sync_tools.sync_planner import SyncAction, SyncActionTarget, SyncActionType
-from notion_sync_tools.sync_tree import SyncTree, GUID, SyncNode, SyncMetadataNotion, SyncNodeType, \
-    SyncNodeRole, Path
+from notion_sync_tools.sync_tree import SyncTree, GUID, SyncNode, SyncMetadataNotion, SyncNodeType, Path
 from notion_sync_tools.sync_mapping import Mapping, NotionResourceMapper, ResourceAction, SyncModel
-from notion_sync_tools.utils.notion import iterate
+from notion_sync_tools.utils.notion import iterate, default_dt, to_local_dt
 
 
 @dataclass
@@ -89,15 +85,15 @@ class NotionProvider(BaseProvider):
 
         # Create new children or reuse existing ones if needed
         for item in iterate(notion_children):
-            if group.id in children:
-                child = children.pop(group.id)
+            if item.id in children:
+                child = children.pop(item.id)
             else:
                 child = self.create_node(item.id, item.title, node)
                 node.children.append(child)
             self.fetch_item(node_path, child, item)
 
         # Unused children are deleted
-        for (_, child) in children:
+        for (_, child) in children.items():
             child.metadata_notion.deleted = True
 
         return node
@@ -120,8 +116,8 @@ class NotionProvider(BaseProvider):
             item.id, item.title,
             max(
                 node.metadata_notion.updated_at,
-                item.updated or datetime.now().replace(year=1990),
-                item.created or datetime.now().replace(year=1990)
+                to_local_dt(item.updated) or default_dt(),
+                to_local_dt(item.created) or default_dt()
             )
         )
         node.metadata_notion.relations = {
@@ -150,6 +146,9 @@ class NotionProvider(BaseProvider):
                         # TODO: do we need to check for duplicates?
                         item.parent = parent
                         parent.children.append(item)
+
+        for node in tree.traverse():
+            node.children = list({c.id: c for c in node.children}.values())
 
     def create_node(self, id: GUID, title: str, parent: SyncNode):
         return SyncNode(

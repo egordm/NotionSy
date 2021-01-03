@@ -1,11 +1,12 @@
-__all__ = ['get_page_by_name', 'get_prop_by_name', 'iterate', 'filter_date_after', 'find_prop']
+__all__ = ['get_page_by_name', 'get_prop_by_name', 'iterate', 'filter_date_after', 'find_prop', 'default_dt']
 
 from copy import copy
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Union, Optional
 
 from notion.block import Block, CollectionViewPageBlock, CollectionViewBlock, PageBlock
 from notion.collection import Collection, CollectionRowBlock, CollectionQuery
+from dateutil import tz
 
 
 def get_page_by_name(name, pages) -> Optional[Block]:
@@ -96,3 +97,11 @@ def copy_properties(old: Block, new: Block, depth: int = 1):
             for old_child in old.children:
                 new_child = new.children.add_new(old_child.__class__)
                 copy_properties(old_child, new_child, depth - 1)
+
+
+def default_dt():
+    return datetime.now().replace(year=1990)
+
+
+def to_local_dt(dt: Optional[datetime]) -> Optional[datetime]:
+    return dt.replace(tzinfo=tz.tzutc()).astimezone(tz=tz.tzlocal()).replace(tzinfo=None) if dt else None

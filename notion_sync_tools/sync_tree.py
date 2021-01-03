@@ -206,12 +206,25 @@ class SyncData(SecretYamlObject):
         with open(path, 'w') as f:
             yaml.dump(self, f, default_flow_style=False)
 
-    @staticmethod
-    def read(root_path: Path):
+    def read(self, root_path: Path):
         path = os.path.join(root_path, TREE_FILENAME)
+        if not os.path.exists(path):
+            logging.debug(f'No SyncTree found at: {path}')
+            return
+
         logging.debug(f'Loading SyncTree from: {path}')
         with open(path, 'r') as f:
-            return yaml.load(f, Loader=yaml.Loader)
+            data: SyncData = yaml.load(f, Loader=yaml.Loader)
+            self.notion_tree = data.notion_tree
+            self.local_tree = data.local_tree
+
+        # Fill parent fields which are not serialized
+        def propagate_parents(parent: Optional[SyncNode], node: SyncNode):
+            node.parent = parent
+            for child in node.children:
+                propagate_parents(node, child)
+        propagate_parents(None, self.notion_tree)
+        propagate_parents(None, self.local_tree)
 
     def apply(self, tree: SyncTree):
         nodes = {n.id: n for n in tree.flatten()}

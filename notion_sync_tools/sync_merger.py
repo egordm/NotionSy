@@ -3,6 +3,7 @@ from typing import Optional, List, Dict
 
 from notion_sync_tools.sync_tree import SyncMetadataNotion, SyncMetadataLocal, SyncMetadata, SyncNodeRole, \
     SyncNode
+from notion_sync_tools.utils.notion import default_dt
 
 
 class SyncMerger:
@@ -23,7 +24,8 @@ class SyncMerger:
             node_type=tl.node_type,
             node_role=tl.node_role,
             metadata_notion=self.merge_metadata(tl.metadata_notion, tr.metadata_notion),
-            metadata_local=self.merge_metadata(tl.metadata_local, tl.metadata_local)
+            metadata_local=self.merge_metadata(tl.metadata_local, tl.metadata_local),
+            synced_at=max(tl.synced_at or default_dt(), tr.synced_at or default_dt())
         )
         tl.copy_metadata_from(res)
         tr.copy_metadata_from(res)
@@ -111,4 +113,4 @@ class SyncMerger:
         if ml is None or mr is None:
             return mr if ml is None else mr
 
-        return mr if mr.updated_at < ml.updated_at else ml
+        return mr if mr.updated_at > ml.updated_at else ml
