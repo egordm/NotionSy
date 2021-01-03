@@ -4,12 +4,14 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
-black = {version = "==20.8b0"}
+black = {version = "*"}
 bumpversion = {version = "*"}
 twine = {version = "*"}
 pipenv-to-requirements = "*"
 ipykernel = "*"
 jupyter = "*"
+pipenv-setup = "*"
+graphviz = "*"
 
 [packages]
 click = "*"
@@ -18,8 +20,9 @@ click-config-file = "*"
 urllib3 = {version = ">=1.24.2"}
 notion = {editable = true, ref = "feature/md-equations", git = "https://github.com/EgorDm/notion-py.git"}
 md2notion = {editable = true, ref = "feature/md-equations", git = "https://github.com/EgorDm/md2notion.git"}
-graphviz = "*"
 notion2md = "*"
+injector = "*"
+tqdm = "*"
 
 [requires]
 python_version = "3.8"

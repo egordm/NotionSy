@@ -1,15 +1,15 @@
 import logging
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Union
 
-from notion_sync_tools.sync_tree import SyncMetadataNotion, SyncMetadataLocal, SyncMetadata, SyncNodeRole, \
-    SyncNode
-from notion_sync_tools.utils.notion import default_dt
+from notionsy.sync_tree import SyncMetadataNotion, SyncMetadataLocal, SyncMetadata, SyncNodeRole, \
+    SyncNode, SyncTree
+from notionsy.utils.notion import default_dt
 
 
 class SyncMerger:
     def merge_nodes(
             self, hierarchy: List[SyncNodeRole], tl: SyncNode, tr: SyncNode, parent: Optional[SyncNode] = None
-    ) -> SyncNode:
+    ) -> Union[SyncNode, SyncTree]:
         """
         Merges two trees given a role hierarchy
         :param hierarchy:

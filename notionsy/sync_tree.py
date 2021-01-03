@@ -10,7 +10,7 @@ from uuid import UUID
 
 import yaml
 
-from notion_sync_tools.utils.serialization import SecretYamlObject
+from notionsy.utils.serialization import SecretYamlObject
 
 SyncNodeRole = str
 GUID = str
@@ -199,15 +199,16 @@ class SyncData(SecretYamlObject):
 
     notion_tree: SyncTree
     local_tree: SyncTree
+    root_dir: Path
 
-    def write(self, root_path: Path):
-        path = os.path.join(root_path, TREE_FILENAME)
+    def write(self):
+        path = os.path.join(self.root_dir, TREE_FILENAME)
         logging.debug(f'Flushing SyncTree to: {path}')
         with open(path, 'w') as f:
             yaml.dump(self, f, default_flow_style=False)
 
-    def read(self, root_path: Path):
-        path = os.path.join(root_path, TREE_FILENAME)
+    def read(self):
+        path = os.path.join(self.root_dir, TREE_FILENAME)
         if not os.path.exists(path):
             logging.debug(f'No SyncTree found at: {path}')
             return

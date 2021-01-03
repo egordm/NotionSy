@@ -7,7 +7,7 @@ from itertools import chain
 from operator import is_not
 from typing import List, Optional
 
-from notion_sync_tools.sync_tree import SyncNode, SyncNodeType
+from notionsy.sync_tree import SyncNode, SyncNodeType
 
 
 class SyncActionType(Enum):

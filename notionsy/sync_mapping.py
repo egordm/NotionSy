@@ -3,8 +3,8 @@ from dataclasses import field, dataclass
 from enum import Enum
 from typing import Dict, List, Tuple, Pattern, AnyStr, Optional, Set
 
-from notion_sync_tools.sync_planner import SyncAction
-from notion_sync_tools.sync_tree import SyncNodeRole, SyncNode, Path, SyncNodeType
+from notionsy.sync_planner import SyncAction
+from notionsy.sync_tree import SyncNodeRole, SyncNode, Path, SyncNodeType, GUID, SyncData, SyncTree
 
 REGEX = str
 
@@ -58,10 +58,18 @@ class NotionResourceMapper:
 
 
 @dataclass
-class SyncModel:
+class SyncConfig:
     root_dir: Path
+    notion_root: GUID
     local_mapping: Mapping
     notion_mapping: Mapping
     structure_types: Dict[SyncNodeRole, SyncNodeType]
     hierarchy: List[str]
     resource_mapper: NotionResourceMapper
+
+    def data(self) -> SyncData:
+        return SyncData(
+            SyncTree.create_notion(self.notion_root),
+            SyncTree.create_local(),
+            self.root_dir
+        )

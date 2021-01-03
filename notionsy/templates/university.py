@@ -1,7 +1,6 @@
 import io
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict
 
 from md2notion.NotionPyRenderer import LatexNotionPyRenderer
 from md2notion.upload import upload
@@ -9,9 +8,9 @@ from notion.block import CollectionViewBlock
 from notion.client import NotionClient
 from notion.collection import Collection
 
-from notion_sync_tools.sync_mapping import Mapping, NotionResourceMapper
-from notion_sync_tools.sync_planner import SyncAction
-from notion_sync_tools.sync_tree import SyncNodeType, SyncNode, SyncMetadataNotion, SyncNodeRole
+from notionsy.sync_mapping import Mapping, NotionResourceMapper, SyncConfig
+from notionsy.sync_planner import SyncAction
+from notionsy.sync_tree import SyncNodeType, SyncMetadataNotion, Path, GUID
 
 UNIVERSITY_LOCAL_MAPPING = Mapping({r'^.+/$': 'course', r'^.+/.+$': 'lecture'})
 UNIVERSITY_NOTION_MAPPING = Mapping({r'^.+ Courses\/.+$': 'course', r'^Lectures\/.+$': 'lecture'})
@@ -79,3 +78,15 @@ class UniversityResourceMapper(NotionResourceMapper):
         content.__dict__["name"] = action.node.metadata_local.path.replace('.md', '')
         upload(content, page, notionPyRendererCls=LatexNotionPyRenderer)
         action.node.metadata_notion.updated_at = datetime.now()
+
+
+def build_config(root_dir: Path, notion_root: GUID, client: NotionClient) -> SyncConfig:
+    return SyncConfig(
+        root_dir,
+        notion_root,
+        UNIVERSITY_LOCAL_MAPPING,
+        UNIVERSITY_NOTION_MAPPING,
+        UNIVERSITY_STRUCTURE_MAPPING,
+        UNIVERSITY_HIERARCHY,
+        UniversityResourceMapper(client=client)
+    )

@@ -1,6 +1,6 @@
 from graphviz import Digraph
 
-from notion_sync_tools.sync_tree import SyncNode
+from notionsy.sync_tree import SyncNode
 
 
 def draw_node(g: Digraph, node: SyncNode):

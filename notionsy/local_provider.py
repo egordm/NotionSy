@@ -6,16 +6,16 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Union
 
-from notion_sync_tools.base_provider import BaseProvider
-from notion_sync_tools.sync_planner import SyncAction, SyncActionTarget, SyncActionType
-from notion_sync_tools.sync_tree import Path, SyncTree, SyncNode, SyncMetadataLocal, TREE_FILENAME, SyncNodeType, \
+from notionsy.base_provider import BaseProvider
+from notionsy.sync_planner import SyncAction, SyncActionTarget, SyncActionType
+from notionsy.sync_tree import Path, SyncTree, SyncNode, SyncMetadataLocal, TREE_FILENAME, SyncNodeType, \
     INTERNAL_FILES
-from notion_sync_tools.sync_mapping import Mapping, SyncModel
+from notionsy.sync_mapping import Mapping, SyncConfig
 
 
 @dataclass
 class LocalProvider(BaseProvider):
-    model: SyncModel
+    model: SyncConfig
 
     @property
     def mapping(self) -> Mapping:

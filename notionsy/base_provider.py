@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from notion_sync_tools.sync_planner import SyncAction
-from notion_sync_tools.sync_tree import SyncTree
+from notionsy.sync_planner import SyncAction
+from notionsy.sync_tree import SyncTree
 
 
 @dataclass

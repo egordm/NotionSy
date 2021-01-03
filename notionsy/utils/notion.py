@@ -1,4 +1,5 @@
-__all__ = ['get_page_by_name', 'get_prop_by_name', 'iterate', 'filter_date_after', 'find_prop', 'default_dt']
+__all__ = ['get_page_by_name', 'get_prop_by_name', 'iterate', 'filter_date_after', 'find_prop', 'default_dt',
+           'to_local_dt']
 
 from copy import copy
 from datetime import datetime, timezone

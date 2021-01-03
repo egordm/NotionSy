@@ -9,18 +9,17 @@ from typing import Union, Dict, List
 from notion.client import NotionClient
 from notion.collection import CollectionRowBlock, Collection
 
-from notion_sync_tools.base_provider import BaseProvider
-from notion_sync_tools.notion2md import NotionMarkdownExporter
-from notion_sync_tools.sync_planner import SyncAction, SyncActionTarget, SyncActionType
-from notion_sync_tools.sync_tree import SyncTree, GUID, SyncNode, SyncMetadataNotion, SyncNodeType, Path
-from notion_sync_tools.sync_mapping import Mapping, NotionResourceMapper, ResourceAction, SyncModel
-from notion_sync_tools.utils.notion import iterate, default_dt, to_local_dt
+from notionsy.base_provider import BaseProvider
+from notionsy.sync_planner import SyncAction, SyncActionTarget, SyncActionType
+from notionsy.sync_tree import SyncTree, GUID, SyncNode, SyncMetadataNotion, SyncNodeType, Path
+from notionsy.sync_mapping import Mapping, ResourceAction, SyncConfig
+from notionsy.utils.notion import iterate, default_dt, to_local_dt
 
 
 @dataclass
 class NotionProvider(BaseProvider):
     client: NotionClient
-    model: SyncModel
+    model: SyncConfig
 
     @property
     def mapping(self) -> Mapping:
