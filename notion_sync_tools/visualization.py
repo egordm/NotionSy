@@ -10,6 +10,8 @@ def draw_node(g: Digraph, node: SyncNode):
 id: {node.id}
 role: {node.node_role}
 type: {node.node_type}
+synced_at: {node.synced_at.strftime("%Y-%m-%d %H:%M") if node.synced_at else None}
+changed: {node.changed()}
 notion: {node.metadata_notion}
 local: {node.metadata_local}
 ''',

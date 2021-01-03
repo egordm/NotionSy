@@ -1,3 +1,4 @@
+import logging
 import mimetypes
 import os
 import uuid
@@ -100,13 +101,17 @@ class NotionMarkdownExporter:
         caption, _ = os.path.splitext(caption)
         filename = f'{caption}-{uuid.uuid4()}'
 
-        r = requests.get(url, allow_redirects=True)
-        content_type = r.headers['content-type']
-        image_path = os.path.abspath(
-            os.path.join(self.image_dir, f'{filename}{mimetypes.guess_extension(content_type)}')
-        )
-        with open(image_path, 'wb') as f:
-            f.write(r.content)
+        try:
+            r = requests.get(url, allow_redirects=True)
+            content_type = r.headers['content-type']
+            image_path = os.path.abspath(
+                os.path.join(self.image_dir, f'{filename}{mimetypes.guess_extension(content_type)}')
+            )
+            with open(image_path, 'wb') as f:
+                f.write(r.content)
+        except Exception as e:
+            logging.exception(e)
+            image_path = filename
         return image_path
 
     def preprocess_markdown(self, text: str) -> str:

@@ -60,7 +60,6 @@ class NotionProvider(BaseProvider):
 
         self.extract_role_parents(tree)
         self.link_relations(tree)
-        tree.collect_updated_at(notion=True, recursive=True)
         return tree
 
     def fetch_group(self, node: SyncNode, group: CollectionRowBlock) -> Union[SyncNode, SyncTree]:
@@ -75,6 +74,10 @@ class NotionProvider(BaseProvider):
 
         node_path = group.title
         node.node_role = self.mapping.match(node_path)
+        node.metadata_notion.updated_at = max(
+            node.metadata_notion.updated_at,
+            datetime.now().replace(year=1990)
+        )
 
         children = {child.metadata_notion.id: child for child in node.children}
         notion_children = group.views[0].build_query(
@@ -97,8 +100,6 @@ class NotionProvider(BaseProvider):
         for (_, child) in children:
             child.metadata_notion.deleted = True
 
-        node.collect_updated_at(notion=True)
-
         return node
 
     def fetch_item(self, group_path: str, node: SyncNode, item: CollectionRowBlock):
@@ -116,7 +117,12 @@ class NotionProvider(BaseProvider):
         node.node_role = self.mapping.match(node_path)
         node.node_type = self.model.structure_types[node.node_role]
         node.metadata_notion = SyncMetadataNotion(
-            item.id, item.title, max(node.metadata_notion.updated_at, item.updated or node.metadata_notion.updated_at)
+            item.id, item.title,
+            max(
+                node.metadata_notion.updated_at,
+                item.updated or datetime.now().replace(year=1990),
+                item.created or datetime.now().replace(year=1990)
+            )
         )
         node.metadata_notion.relations = {
             role: [related.id for related in getattr(item, role)]
@@ -167,7 +173,7 @@ class NotionProvider(BaseProvider):
         if action.action_type == SyncActionType.FETCH and action.node.node_role:
             resource_action = ResourceAction.CREATE if action.should_create else ResourceAction.UPDATE
             self.model.resource_mapper.execute(resource_action, action.node.node_role, action)
-            action.node.synced_at = action.changed_at
+            action.node.synced_at = datetime.now()
 
     def action_downstream(self, action: SyncAction):
         assert action.action_target == SyncActionTarget.NOTION
@@ -175,6 +181,7 @@ class NotionProvider(BaseProvider):
             # Delete a node
             logging.debug(f'ACTION - NOTION: Deleting notion node: {action.node.metadata_notion.id}')
             self.client.get_block(action.node.metadata_notion.id).remove()
+            action.node.metadata_notion.deleted = True
         elif action.action_type == SyncActionType.FETCH:
             if action.node.node_type == SyncNodeType.NOTE:
                 exporter = NotionMarkdownExporter(

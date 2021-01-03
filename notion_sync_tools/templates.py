@@ -70,12 +70,12 @@ class UniversityResourceMapper(NotionResourceMapper):
             relations={'course': [action.node.parent.metadata_notion.id]}
         )
 
-    def update_lecture(self, node: SyncNode, action: SyncAction):
-        page = self.client.get_block(node.metadata_notion.id)
+    def update_lecture(self, action: SyncAction):
+        page = self.client.get_block(action.node.metadata_notion.id)
         for c in page.children:
             c.remove()
 
         content = io.StringIO(action.content)
-        content.__dict__["name"] = node.metadata_local.path.replace('.md', '')
+        content.__dict__["name"] = action.node.metadata_local.path.replace('.md', '')
         upload(content, page, notionPyRendererCls=LatexNotionPyRenderer)
-        node.metadata_notion.updated_at = datetime.now()
+        action.node.metadata_notion.updated_at = datetime.now()

@@ -52,13 +52,13 @@ class LocalProvider(BaseProvider):
 
         # Update node
         node.node_role = self.mapping.match(format_path(self.root_dir, os.path.relpath(node_path, self.root_dir)))
+        node.metadata_local.updated_at = max(
+            node.metadata_local.updated_at,
+            datetime.fromtimestamp(os.path.getmtime(node_path))
+        )
 
         # Handle standalone files (leaves)
         if os.path.isfile(node_path):
-            node.metadata_local.updated_at = max(
-                node.metadata_local.updated_at,
-                datetime.fromtimestamp(os.path.getmtime(node_path))
-            )
             return node
 
         # Check for new items
@@ -85,7 +85,6 @@ class LocalProvider(BaseProvider):
         # Update children
         for child in node.children:
             self.fetch_node(node_path, child)
-        node.collect_updated_at(local=True)
 
         return node
 
@@ -130,6 +129,7 @@ class LocalProvider(BaseProvider):
                     path=filename,
                     updated_at=datetime.now()
                 )
+            action.node.synced_at = datetime.now()
 
     def action_downstream(self, action: SyncAction):
         assert action.action_target == SyncActionTarget.LOCAL
@@ -137,6 +137,7 @@ class LocalProvider(BaseProvider):
             # Delete a node
             logging.debug(f'ACTION - NOTION: Deleting local node: {action.node.metadata_notion.id}')
             shutil.rmtree(os.path.join(self.root_dir, action.node.local_path()))
+            action.node.metadata_local.deleted = True
         elif action.action_type == SyncActionType.FETCH:
             if action.node.node_type == SyncNodeType.NOTE:
                 with open(os.path.join(self.root_dir, action.node.local_path()), 'r') as f:

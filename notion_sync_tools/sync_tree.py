@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Union, List, Dict, Tuple, Callable
+from typing import Optional, Union, List, Dict, Tuple, Callable, Iterable
 from uuid import UUID
 
 import yaml
@@ -37,7 +37,7 @@ def enum_representer(tag: str):
 
 
 def enum_deserailize(enum):
-    def rep(loader, node):
+    def rep(_loader, node):
         return enum(node.value)
 
     return rep
@@ -137,44 +137,17 @@ class SyncNode(SecretYamlObject):
 
         return flatten_node(self)
 
-    def collect_updated_at(self, notion=False, local=False, recursive=False):
-        """
-        Updates updated_at according to it's children
-        :param recursive:
-        :param notion:
-        :param local:
-        :return:
-        """
-        # Check children dates first
-        if recursive:
-            for c in self.children:
-                c.collect_updated_at(notion, local, recursive)
-
-        def collect_notion(child: SyncNode):
-            return child.metadata_notion.updated_at if child.metadata_notion else datetime.now().replace(year=1990)
-
-        def collect_local(child: SyncNode):
-            return child.metadata_local.updated_at if child.metadata_local else datetime.now().replace(year=1990)
-
-        if notion:
-            self.metadata_notion.updated_at = max(
-                self.metadata_notion.updated_at,
-                self.metadata_notion.updated_at,
-                *map(collect_notion, self.children)
-            )
-        if local:
-            self.metadata_local.updated_at = max(
-                self.metadata_local.updated_at,
-                self.metadata_local.updated_at,
-                *map(collect_local, self.children)
-            )
+    def traverse(self) -> Iterable['SyncNode']:
+        yield self
+        for c in self.children:
+            yield from c.traverse()
 
     def changed(self) -> Tuple[bool, bool]:
         return (
-            (not self.metadata_notion or not self.synced_at or self.metadata_local.updated_at > self.synced_at)
-            if self.metadata_local else False,
-            (not self.metadata_local or not self.synced_at or self.metadata_notion.updated_at > self.synced_at)
-            if self.metadata_notion else False
+            (not self.metadata_notion or not self.synced_at or self.synced_at < self.metadata_local.updated_at)
+            if self.metadata_local else False,  # Changed local
+            (not self.metadata_local or not self.synced_at or self.synced_at < self.metadata_notion.updated_at)
+            if self.metadata_notion else False  # Changed notion
         )
 
     def local_dir(self) -> Path:
@@ -239,3 +212,14 @@ class SyncData(SecretYamlObject):
         logging.debug(f'Loading SyncTree from: {path}')
         with open(path, 'r') as f:
             return yaml.load(f, Loader=yaml.Loader)
+
+    def apply(self, tree: SyncTree):
+        nodes = {n.id: n for n in tree.flatten()}
+
+        for t in [self.notion_tree, self.local_tree]:
+            for node in t.traverse():
+                ref: SyncNode = nodes.get(node.id)
+                if ref is None: continue
+                node.metadata_notion = ref.metadata_notion
+                node.metadata_local = ref.metadata_local
+                node.synced_at = ref.synced_at

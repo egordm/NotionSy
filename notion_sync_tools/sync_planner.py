@@ -122,9 +122,9 @@ class SyncConflictResolver:
                 continue
 
             if choice == 'l':
-                return list(filter(lambda a: a.action_target == SyncActionTarget.NOTION, action.conflicts))
-            elif choice == 'n':
                 return list(filter(lambda a: a.action_target == SyncActionTarget.LOCAL, action.conflicts))
+            elif choice == 'n':
+                return list(filter(lambda a: a.action_target == SyncActionTarget.NOTION, action.conflicts))
             elif choice == 's':
                 return []
             elif choice == 'a':
