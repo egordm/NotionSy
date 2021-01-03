@@ -16,7 +16,7 @@ SyncNodeRole = str
 GUID = str
 Path = str
 TREE_FILENAME = '.sync.yml'
-INTERNAL_FILES = [TREE_FILENAME, 'resources']
+INTERNAL_FILES = [TREE_FILENAME, 'resources', 'config.yml']
 
 
 class SyncNodeType(Enum):

@@ -34,6 +34,8 @@ notionsy sync --config=./config.yml
 ```
 
 ## TODO
+- [ ] Add a delay for pushing new blocks
+- [ ] Add synctree writing while syncing (for resuming broken syncs)
 - [ ] Create file configuration for mapping specification
 - [ ] Dry run option
 - [ ] Backup before synchronization
