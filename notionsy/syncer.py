@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+import time
 from dataclasses import dataclass
 from typing import List, Tuple, Dict, Union
 
@@ -26,3 +27,4 @@ class Syncer:
             self.providers[action.action_target].action_downstream(action)
             other = list((targets - {action.action_target}))[0]
             self.providers[other].action_upstream(action)
+            time.sleep(5)

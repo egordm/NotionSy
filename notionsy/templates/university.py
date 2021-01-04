@@ -1,10 +1,12 @@
 import io
+import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime
 
 from md2notion.NotionPyRenderer import LatexNotionPyRenderer
 from md2notion.upload import upload
-from notion.block import CollectionViewBlock
+from notion.block import CollectionViewBlock, Block
 from notion.client import NotionClient
 from notion.collection import Collection
 
@@ -58,9 +60,12 @@ class UniversityResourceMapper(NotionResourceMapper):
         page = lecture_collection.add_row()
         page.title = action.node.metadata_local.path.replace('.md', '')
         page.course = [action.node.parent.metadata_notion.id]
-        content = io.StringIO(action.content)
-        content.__dict__["name"] = action.node.metadata_local.path.replace('.md', '')
-        upload(content, page, notionPyRendererCls=LatexNotionPyRenderer)
+        self.upload_content(
+            page.id,
+            action.content,
+            action.node.metadata_local.path.replace('.md', ''),
+            False
+        )
 
         action.node.metadata_notion = SyncMetadataNotion(
             id=page.id,
@@ -70,14 +75,31 @@ class UniversityResourceMapper(NotionResourceMapper):
         )
 
     def update_lecture(self, action: SyncAction):
-        page = self.client.get_block(action.node.metadata_notion.id)
-        for c in page.children:
-            c.remove()
-
-        content = io.StringIO(action.content)
-        content.__dict__["name"] = action.node.metadata_local.path.replace('.md', '')
-        upload(content, page, notionPyRendererCls=LatexNotionPyRenderer)
+        self.upload_content(
+            action.node.metadata_notion.id,
+            action.content,
+            action.node.metadata_local.path.replace('.md', ''),
+            True
+        )
         action.node.metadata_notion.updated_at = datetime.now()
+
+    def upload_content(self, page_id: GUID, content: str, name: str, clear: bool = True) -> Block:
+        while True:
+            try:
+                page = self.client.get_block(page_id, force_refresh=True)
+                if clear:
+                    for child in page.children:
+                        child.remove()
+                time.sleep(2)
+                contentFile = io.StringIO(content)
+                contentFile.__dict__["name"] = name
+                upload(contentFile, page, notionPyRendererCls=LatexNotionPyRenderer)
+                break
+            except Exception as e:
+                logging.error(f'Error occurred while uploading content: {e}')
+                clear = True
+                time.sleep(10)
+        return page
 
 
 def build_config(root_dir: Path, notion_root: GUID, client: NotionClient) -> SyncConfig:

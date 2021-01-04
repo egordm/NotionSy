@@ -101,7 +101,7 @@ class LocalProvider(BaseProvider):
         mime, _ = mimetypes.guess_type(node_path)
 
         # Only folders and textual files allowed
-        if not is_folder and not mime.startswith('text'):
+        if not is_folder and (not mime or not mime.startswith('text')):
             return None
 
         return SyncNode(

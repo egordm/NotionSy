@@ -14,6 +14,7 @@ from notionsy.sync_planner import SyncAction, SyncActionTarget, SyncActionType
 from notionsy.sync_tree import SyncTree, GUID, SyncNode, SyncMetadataNotion, SyncNodeType, Path
 from notionsy.sync_mapping import Mapping, ResourceAction, SyncConfig
 from notionsy.utils.notion import iterate, default_dt, to_local_dt
+from notionsy.utils.notion2md import NotionMarkdownExporter
 
 
 @dataclass
